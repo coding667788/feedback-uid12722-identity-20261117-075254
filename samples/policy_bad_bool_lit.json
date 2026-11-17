@@ -1,0 +1,11 @@
+{
+  "version": 3,
+  "rules": [
+    {
+      "id": "read-deny-all",
+      "action": "read",
+      "effect": "deny",
+      "expression": {"op": "lit", "value": true}
+    }
+  ]
+}

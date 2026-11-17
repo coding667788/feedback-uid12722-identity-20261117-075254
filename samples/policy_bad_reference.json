@@ -1,0 +1,15 @@
+{
+  "version": 3,
+  "rules": [
+    {
+      "id": "read-allow-bad-ref",
+      "action": "read",
+      "effect": "allow",
+      "expression": {
+        "op": "eq",
+        "left": {"op": "attr", "kind": "subject", "name": "nonexistent_attr"},
+        "right": {"op": "lit", "value": "x"}
+      }
+    }
+  ]
+}

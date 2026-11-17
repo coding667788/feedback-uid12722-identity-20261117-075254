@@ -1,0 +1,13 @@
+{
+  "subject": {
+    "dept": "string",
+    "level": "integer",
+    "roles": "set",
+    "clearance": "integer"
+  },
+  "resource": {
+    "owner_dept": "string",
+    "sensitivity": "integer",
+    "tags": "set"
+  }
+}

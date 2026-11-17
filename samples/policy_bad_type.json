@@ -1,0 +1,15 @@
+{
+  "version": 3,
+  "rules": [
+    {
+      "id": "read-allow-bad-type",
+      "action": "read",
+      "effect": "allow",
+      "expression": {
+        "op": "lt",
+        "left": {"op": "attr", "kind": "subject", "name": "dept"},
+        "right": {"op": "lit", "value": 5}
+      }
+    }
+  ]
+}

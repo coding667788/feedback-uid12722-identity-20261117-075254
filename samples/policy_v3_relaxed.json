@@ -1,0 +1,15 @@
+{
+  "version": 3,
+  "rules": [
+    {
+      "id": "read-allow-v3",
+      "action": "read",
+      "effect": "allow",
+      "expression": {
+        "op": "eq",
+        "left": {"op": "attr", "kind": "subject", "name": "dept"},
+        "right": {"op": "attr", "kind": "resource", "name": "owner_dept"}
+      }
+    }
+  ]
+}

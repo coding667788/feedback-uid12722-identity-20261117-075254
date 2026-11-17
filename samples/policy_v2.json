@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "rules": [
+    {
+      "id": "read-allow-v2",
+      "action": "read",
+      "effect": "allow",
+      "expression": {
+        "op": "and",
+        "children": [
+          {
+            "op": "eq",
+            "left": {"op": "attr", "kind": "subject", "name": "dept"},
+            "right": {"op": "attr", "kind": "resource", "name": "owner_dept"}
+          },
+          {
+            "op": "in",
+            "left": {"op": "lit", "value": "reader"},
+            "right": {"op": "attr", "kind": "subject", "name": "roles"}
+          },
+          {
+            "op": "not",
+            "child": {
+              "op": "or",
+              "children": [
+                {
+                  "op": "in",
+                  "left": {"op": "lit", "value": "secret"},
+                  "right": {"op": "attr", "kind": "resource", "name": "tags"}
+                },
+                {
+                  "op": "lt",
+                  "left": {"op": "attr", "kind": "subject", "name": "clearance"},
+                  "right": {"op": "attr", "kind": "resource", "name": "sensitivity"}
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "read-deny-guest",
+      "action": "read",
+      "effect": "deny",
+      "expression": {
+        "op": "in",
+        "left": {"op": "lit", "value": "guest"},
+        "right": {"op": "attr", "kind": "subject", "name": "roles"}
+      }
+    }
+  ]
+}

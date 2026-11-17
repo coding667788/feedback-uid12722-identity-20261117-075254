@@ -1,0 +1,312 @@
+{
+  "cases": [
+    {
+      "name": "01_missing_negation_and_boolean_nesting",
+      "db": ".runtime-tmp/case01.db",
+      "steps": [
+        {"type": "replace_policy", "tenant": "acme",
+         "doc": {"$file": "samples/policy_v1.json"},
+         "schema": {"$file": "samples/schema.json"}},
+        {"type": "put_subject", "tenant": "acme", "subject": "u1", "version": 1,
+         "attrs": {"dept": "eng", "roles": ["reader"]}},
+        {"type": "put_resource", "tenant": "acme", "resource": "doc1", "version": 1,
+         "attrs": {"owner_dept": "eng", "sensitivity": 2}},
+
+        {"type": "decide", "tenant": "acme", "subject": "u1",
+         "resource": "doc1", "action": "read",
+         "expect_decision": "deny",
+         "expect_tribool": {"read-allow": "unknown", "read-deny-guest": "false"},
+         "expect_matched": {"allow": [], "deny": []},
+         "expect_versions": {"policy_version": 1, "subject_version": 1,
+                             "resource_version": 1}},
+
+        {"type": "put_subject", "tenant": "acme", "subject": "u1", "version": 2,
+         "attrs": {"dept": "eng", "roles": ["reader"], "clearance": 5}},
+        {"type": "decide", "tenant": "acme", "subject": "u1",
+         "resource": "doc1", "action": "read",
+         "expect_decision": "allow",
+         "expect_tribool": {"read-allow": "true", "read-deny-guest": "false"},
+         "expect_matched": {"allow": ["read-allow"], "deny": []},
+         "expect_versions": {"subject_version": 2}},
+
+        {"type": "decide", "tenant": "acme", "subject": "u1",
+         "resource": "doc1", "action": "write",
+         "expect_decision": "deny",
+         "expect_matched": {"allow": [], "deny": []},
+         "expect_tribool": {"write-allow": "false"}},
+
+        {"type": "put_subject", "tenant": "acme", "subject": "u1", "version": 3,
+         "attrs": {"dept": "eng", "roles": ["reader", "writer"], "clearance": 5}},
+        {"type": "decide", "tenant": "acme", "subject": "u1",
+         "resource": "doc1", "action": "write",
+         "expect_decision": "allow",
+         "expect_matched": {"allow": ["write-allow"]}},
+
+        {"type": "put_subject", "tenant": "acme", "subject": "guest1", "version": 1,
+         "attrs": {"dept": "eng", "roles": ["guest", "reader"], "clearance": 9}},
+        {"type": "decide", "tenant": "acme", "subject": "guest1",
+         "resource": "doc1", "action": "read",
+         "expect_decision": "deny",
+         "expect_matched": {"allow": ["read-allow"], "deny": ["read-deny-guest"]},
+         "expect_tribool": {"read-allow": "true", "read-deny-guest": "true"}}
+      ]
+    },
+    {
+      "name": "02_cross_tenant_same_subject_name",
+      "db": ".runtime-tmp/case02.db",
+      "steps": [
+        {"type": "replace_policy", "tenant": "alpha",
+         "doc": {"$file": "samples/policy_v1.json"},
+         "schema": {"$file": "samples/schema.json"}},
+        {"type": "replace_policy", "tenant": "beta",
+         "doc": {"$file": "samples/policy_v1.json"},
+         "schema": {"$file": "samples/schema.json"}},
+
+        {"type": "put_subject", "tenant": "alpha", "subject": "alice", "version": 1,
+         "attrs": {"dept": "eng", "roles": ["reader"], "clearance": 9}},
+        {"type": "put_subject", "tenant": "beta", "subject": "alice", "version": 1,
+         "attrs": {"dept": "sales", "roles": ["reader"], "clearance": 9}},
+        {"type": "put_resource", "tenant": "alpha", "resource": "r1", "version": 1,
+         "attrs": {"owner_dept": "eng", "sensitivity": 1}},
+        {"type": "put_resource", "tenant": "beta", "resource": "r1", "version": 1,
+         "attrs": {"owner_dept": "eng", "sensitivity": 1}},
+
+        {"type": "decide", "tenant": "alpha", "subject": "alice",
+         "resource": "r1", "action": "read",
+         "expect_decision": "allow",
+         "expect_versions": {"policy_version": 1, "subject_version": 1,
+                             "resource_version": 1}},
+        {"type": "decide", "tenant": "beta", "subject": "alice",
+         "resource": "r1", "action": "read",
+         "expect_decision": "deny",
+         "expect_matched": {"allow": [], "deny": []},
+         "expect_versions": {"policy_version": 1, "subject_version": 1,
+                             "resource_version": 1}},
+
+        {"type": "put_resource", "tenant": "beta", "resource": "r1", "version": 2,
+         "attrs": {"owner_dept": "sales", "sensitivity": 1}},
+        {"type": "decide", "tenant": "beta", "subject": "alice",
+         "resource": "r1", "action": "read",
+         "expect_decision": "allow",
+         "expect_versions": {"resource_version": 2}},
+
+        {"type": "decide", "tenant": "alpha", "subject": "alice",
+         "resource": "r1", "action": "read",
+         "expect_decision": "allow",
+         "expect_versions": {"resource_version": 1}},
+
+        {"type": "decide", "tenant": "gamma", "subject": "alice",
+         "resource": "r1", "action": "read",
+         "expect_decision": "deny",
+         "expect_versions": {"policy_version": 0, "subject_version": 0,
+                             "resource_version": 0}}
+      ]
+    },
+    {
+      "name": "03_cache_invalidation_on_attribute_change",
+      "db": ".runtime-tmp/case03.db",
+      "steps": [
+        {"type": "replace_policy", "tenant": "acme",
+         "doc": {"$file": "samples/policy_v1.json"},
+         "schema": {"$file": "samples/schema.json"}},
+        {"type": "put_subject", "tenant": "acme", "subject": "u1", "version": 1,
+         "attrs": {"dept": "eng", "roles": ["reader"], "clearance": 9}},
+        {"type": "put_resource", "tenant": "acme", "resource": "doc1", "version": 1,
+         "attrs": {"owner_dept": "eng", "sensitivity": 2}},
+
+        {"type": "decide", "tenant": "acme", "subject": "u1",
+         "resource": "doc1", "action": "read",
+         "expect_decision": "allow", "expect_cache_hit": false},
+        {"type": "decide", "tenant": "acme", "subject": "u1",
+         "resource": "doc1", "action": "read",
+         "expect_decision": "allow", "expect_cache_hit": true},
+        {"type": "inspect_cache"},
+
+        {"type": "put_resource", "tenant": "acme", "resource": "doc1", "version": 2,
+         "attrs": {"owner_dept": "eng", "sensitivity": 10}},
+        {"type": "decide", "tenant": "acme", "subject": "u1",
+         "resource": "doc1", "action": "read",
+         "expect_decision": "deny", "expect_cache_hit": false,
+         "expect_versions": {"resource_version": 2},
+         "expect_tribool": {"read-allow": "false"}},
+        {"type": "decide", "tenant": "acme", "subject": "u1",
+         "resource": "doc1", "action": "read",
+         "expect_decision": "deny", "expect_cache_hit": true},
+
+        {"type": "put_resource", "tenant": "acme", "resource": "doc1", "version": 3,
+         "attrs": {"owner_dept": "eng", "sensitivity": 10}},
+        {"type": "decide", "tenant": "acme", "subject": "u1",
+         "resource": "doc1", "action": "read",
+         "expect_decision": "deny", "expect_cache_hit": false,
+         "expect_versions": {"resource_version": 3}},
+
+        {"type": "cache_clear"},
+        {"type": "decide", "tenant": "acme", "subject": "u1",
+         "resource": "doc1", "action": "read",
+         "expect_decision": "deny", "expect_cache_hit": false},
+
+        {"type": "put_subject", "tenant": "acme", "subject": "u1", "version": 2,
+         "attrs": {"dept": "eng", "roles": ["reader"], "clearance": 11}},
+        {"type": "decide", "tenant": "acme", "subject": "u1",
+         "resource": "doc1", "action": "read",
+         "expect_decision": "allow", "expect_cache_hit": false,
+         "expect_versions": {"subject_version": 2, "resource_version": 3}}
+      ]
+    },
+    {
+      "name": "04_version_conflicts_and_policy_validation",
+      "db": ".runtime-tmp/case04.db",
+      "steps": [
+        {"type": "replace_policy", "tenant": "acme",
+         "doc": {"$file": "samples/policy_v1.json"},
+         "schema": {"$file": "samples/schema.json"}},
+        {"type": "put_subject", "tenant": "acme", "subject": "u1", "version": 1,
+         "attrs": {"dept": "eng", "roles": ["reader"], "clearance": 9}},
+        {"type": "put_resource", "tenant": "acme", "resource": "doc1", "version": 1,
+         "attrs": {"owner_dept": "eng", "sensitivity": 2}},
+
+        {"type": "replace_policy", "tenant": "acme",
+         "doc": {"$file": "samples/policy_v1.json"},
+         "schema": {"$file": "samples/schema.json"}},
+        {"type": "list_versions", "tenant": "acme"},
+
+        {"type": "replace_policy", "tenant": "acme",
+         "doc": {"version": 1,
+                 "rules": [{"id": "other", "action": "read", "effect": "allow",
+                            "expression": {"op": "lit", "value": "always"}}]},
+         "schema": {"$file": "samples/schema.json"}},
+        {"type": "expect_error", "code": "DUPLICATE_VERSION_CONTENT"},
+
+        {"type": "decide", "tenant": "acme", "subject": "u1",
+         "resource": "doc1", "action": "read",
+         "expect_decision": "allow",
+         "expect_versions": {"policy_version": 1},
+         "expect_matched": {"allow": ["read-allow"]}},
+
+        {"type": "replace_policy", "tenant": "acme",
+         "doc": {"version": 0, "rules": []},
+         "schema": {"$file": "samples/schema.json"}},
+        {"type": "expect_error", "code": "VERSION_NOT_MONOTONIC"},
+
+        {"type": "put_resource", "tenant": "acme", "resource": "doc_bad", "version": 1,
+         "attrs": {"sensitivity": "not-an-int"}},
+        {"type": "expect_error", "code": "TYPE_MISMATCH"},
+
+        {"type": "put_resource", "tenant": "acme", "resource": "doc_bad2", "version": 1,
+         "attrs": {"undeclared_attr": 1}},
+        {"type": "expect_error", "code": "POLICY_VALIDATION_FAILED"},
+
+        {"type": "replace_policy", "tenant": "acme",
+         "doc": {"$file": "samples/policy_bad_reference.json"},
+         "schema": {"$file": "samples/schema.json"}},
+        {"type": "expect_error", "code": "POLICY_VALIDATION_FAILED"},
+
+        {"type": "replace_policy", "tenant": "acme",
+         "doc": {"$file": "samples/policy_bad_type.json"},
+         "schema": {"$file": "samples/schema.json"}},
+        {"type": "expect_error", "code": "POLICY_VALIDATION_FAILED"},
+
+        {"type": "replace_policy", "tenant": "acme",
+         "doc": {"$file": "samples/policy_bad_bool_lit.json"},
+         "schema": {"$file": "samples/schema.json"}},
+        {"type": "expect_error", "code": "POLICY_VALIDATION_FAILED"},
+
+        {"type": "decide", "tenant": "acme", "subject": "u1",
+         "resource": "doc1", "action": "read",
+         "expect_decision": "allow",
+         "expect_versions": {"policy_version": 1}}
+      ]
+    },
+    {
+      "name": "05_policy_diff_small_domain_counterexamples",
+      "db": ".runtime-tmp/case05.db",
+      "steps": [
+        {"type": "diff",
+         "old_doc": {
+           "version": 1,
+           "rules": [
+             {"id": "old-allow", "action": "read", "effect": "allow",
+              "expression": {"op": "eq",
+                "left": {"op": "attr", "kind": "subject", "name": "dept"},
+                "right": {"op": "lit", "value": "eng"}}}
+           ]
+         },
+         "new_doc": {
+           "version": 2,
+           "rules": [
+             {"id": "new-allow", "action": "read", "effect": "allow",
+              "expression": {"op": "not", "child": {"op": "eq",
+                "left": {"op": "attr", "kind": "subject", "name": "dept"},
+                "right": {"op": "lit", "value": "sales"}}}}
+           ]
+         },
+         "old_schema": {"subject": {"dept": "string"}, "resource": {}},
+         "new_schema": {"subject": {"dept": "string"}, "resource": {}},
+         "domains": {"subject": {"dept": ["eng", "sales"]}},
+         "actions": ["read"],
+         "expect_space_size": 3,
+         "expect_gained_allow_count": 0,
+         "expect_lost_allow_count": 0},
+        {"type": "diff",
+         "old_doc": {
+           "version": 1,
+           "rules": [
+             {"id": "old-allow", "action": "read", "effect": "allow",
+              "expression": {"op": "eq",
+                "left": {"op": "attr", "kind": "subject", "name": "dept"},
+                "right": {"op": "lit", "value": "eng"}}}
+           ]
+         },
+         "new_doc": {
+           "version": 2,
+           "rules": [
+             {"id": "new-allow", "action": "read", "effect": "allow",
+              "expression": {"op": "in",
+                "left": {"op": "attr", "kind": "subject", "name": "dept"},
+                "right": {"op": "lit", "value": ["eng", "sales"]}}}
+           ]
+         },
+         "old_schema": {"subject": {"dept": "string"}, "resource": {}},
+         "new_schema": {"subject": {"dept": "string"}, "resource": {}},
+         "domains": {"subject": {"dept": ["eng", "sales"]}},
+         "actions": ["read"],
+         "expect_space_size": 3,
+         "expect_gained_allow_count": 1,
+         "expect_lost_allow_count": 0},
+        {"type": "assert_equal",
+         "actual": {"$binary": "samples/binary_sample.bin", "encoding": "base64"},
+         "expected": "AAF/gP7/YWJhYw=="},
+        {"type": "assert_equal",
+         "actual": {"$binary": "samples/binary_sample.bin", "encoding": "hex"},
+         "expected": "00017f80feff61626163"},
+        {"type": "assert_equal",
+         "actual": {"$file": "samples/schema.json"},
+         "expected": {"$file": "samples/schema.json"}}
+      ]
+    },
+    {
+      "name": "06_stored_policy_diff_between_versions",
+      "db": ".runtime-tmp/case06.db",
+      "steps": [
+        {"type": "replace_policy", "tenant": "acme",
+         "doc": {"$file": "samples/policy_v1.json"},
+         "schema": {"$file": "samples/schema.json"}},
+        {"type": "replace_policy", "tenant": "acme",
+         "doc": {"$file": "samples/policy_v3_relaxed.json"},
+         "schema": {"$file": "samples/schema.json"}},
+        {"type": "list_versions", "tenant": "acme"},
+        {"type": "diff_stored", "tenant": "acme",
+         "old_version": 1, "new_version": 3,
+         "domains": {
+           "subject": {"dept": ["eng", "sales"],
+                       "roles": [["reader"], ["guest"]],
+                       "clearance": [3, 9]},
+           "resource": {"owner_dept": ["eng", "sales"],
+                        "sensitivity": [1, 8]}
+         },
+         "actions": ["read"],
+         "expect_space_size": 1728}
+      ]
+    }
+  ]
+}
